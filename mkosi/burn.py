@@ -21,7 +21,36 @@ def run_burn(args: Args, config: Config) -> None:
     if len(args.cmdline) != 1:
         die("Expected device argument.")
 
-    cmd = [
+
+    print("Getting info on device")
+    lsblk_cmd = [
+        "lsblk",
+        "-o",
+        "PATH,LABEL,PARTLABEL,FSTYPE,SIZE,HOTPLUG,MOUNTPOINTS",
+        *args.cmdline,
+    ]
+
+    run(
+        lsblk_cmd,
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        env=os.environ | config.finalize_environment(),
+        log=False,
+        sandbox=config.sandbox(
+            devices=True,
+            relaxed=True,
+        ),
+    )
+
+    # Confirm prompt
+    if args.force == 0:
+        yes = ["y", "yes"]
+        sys.stdout.write(f"Confirm burn to, {args.cmdline}: [y/N] ")
+        confirm = input().lower()
+        if confirm not in yes:
+            die("Operation canceled, aborting")
+
+    repart_cmd = [
         "systemd-repart",
         "--no-pager",
         "--pretty=no",
@@ -35,7 +64,7 @@ def run_burn(args: Args, config: Config) -> None:
 
     with complete_step("Burning 🔥🔥🔥 to medium…", "Burnt. 🔥🔥🔥"):
         run(
-            cmd,
+            repart_cmd,
             stdin=sys.stdin,
             stdout=sys.stdout,
             env=os.environ | config.finalize_environment(),
